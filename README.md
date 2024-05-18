@@ -12,6 +12,8 @@ go install github.com/rix4uni/paramfinder@latest
 Usage of paramfinder:
   -c int
         number of concurrent goroutines (default 20)
+  -o string
+        output file path
   -timeout int
         HTTP request timeout duration (in seconds) (default 30)
   -v    enable verbose mode
