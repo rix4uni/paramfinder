@@ -38,13 +38,13 @@ http://testphp.vulnweb.com/AJAX/index.php
 
 output:
 ```
-http://testphp.vulnweb.com/guestbook.php
+URL: http://testphp.vulnweb.com/guestbook.php
 <input type="hidden" name="name" value="anonymous user">
 <input type="submit" name="submit" value="add message">
 <input name="searchFor" type="text" size="10">
 <input name="goButton" type="submit" value="go">
 
-http://testphp.vulnweb.com/login.php
+URL: http://testphp.vulnweb.com/login.php
 <input name="uname" type="text" size="20" style="width:120px;">
 <input name="pass" type="password" size="20" style="width:120px;">
 <input type="submit" value="login" style="width:75px;">
