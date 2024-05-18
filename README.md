@@ -7,6 +7,16 @@ ParamFinder crawl all input tags
 go install github.com/rix4uni/paramfinder@latest
 ```
 
+## Usage
+```
+Usage of paramfinder:
+  -c int
+        number of concurrent goroutines (default 20)
+  -timeout int
+        HTTP request timeout duration (in seconds) (default 30)
+  -v    enable verbose mode
+```
+
 ## Example usages
 
 Single URL:
@@ -33,8 +43,6 @@ http://testphp.vulnweb.com/guestbook.php
 <input type="submit" name="submit" value="add message">
 <input name="searchFor" type="text" size="10">
 <input name="goButton" type="submit" value="go">
-
-http://testphp.vulnweb.com/AJAX/index.php
 
 http://testphp.vulnweb.com/login.php
 <input name="uname" type="text" size="20" style="width:120px;">
