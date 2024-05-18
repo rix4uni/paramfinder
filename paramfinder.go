@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -17,9 +18,22 @@ func main() {
 	numRoutines := flag.Int("c", 20, "number of concurrent goroutines")
 	timeout := flag.Int("timeout", 30, "HTTP request timeout duration (in seconds)")
 	verbose := flag.Bool("v", false, "enable verbose mode")
+	outputFile := flag.String("o", "", "output file path")
 
 	// Parse the command-line flags
 	flag.Parse()
+
+	// Create a multi-writer for output
+	var outputWriter io.Writer = os.Stdout
+	if *outputFile != "" {
+		file, err := os.Create(*outputFile)
+		if err != nil {
+			fmt.Println("Error opening output file:", err)
+			os.Exit(1)
+		}
+		defer file.Close()
+		outputWriter = io.MultiWriter(os.Stdout, file)
+	}
 
 	// Create a scanner to read from standard input
 	scanner := bufio.NewScanner(os.Stdin)
@@ -48,7 +62,7 @@ func main() {
 				resp, err := client.Get(url)
 				if err != nil {
 					if *verbose {
-						fmt.Println(err)
+						fmt.Fprintln(outputWriter, err)
 					}
 					continue
 				}
@@ -58,7 +72,7 @@ func main() {
 				body, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
 					if *verbose {
-						fmt.Println(err)
+						fmt.Fprintln(outputWriter, err)
 					}
 					continue
 				}
@@ -67,13 +81,13 @@ func main() {
 				re := regexp.MustCompile(`<input[^>]*>`)
 				inputTags := re.FindAllString(string(body), -1)
 
-				// Print the URL and input tags only if there are input tags
-				if len(inputTags) > 0 {
-					fmt.Println("URL:", url)
+				// Print the URL and input tags if verbose mode is enabled or there are input tags
+				if *verbose || len(inputTags) > 0 {
+					fmt.Fprintln(outputWriter, "URL:", url)
 					for _, tag := range inputTags {
-						fmt.Println(tag)
+						fmt.Fprintln(outputWriter, tag)
 					}
-					fmt.Println()
+					fmt.Fprintln(outputWriter)
 				}
 			}
 		}()
