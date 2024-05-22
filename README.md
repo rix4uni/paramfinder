@@ -12,6 +12,7 @@ go install github.com/rix4uni/paramfinder@latest
 Usage of paramfinder:
   -c int
         number of concurrent goroutines (default 20)
+  -k    allow insecure server connections when using SSL
   -o string
         output file path
   -timeout int
