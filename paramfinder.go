@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ func main() {
 	timeout := flag.Int("timeout", 30, "HTTP request timeout duration (in seconds)")
 	verbose := flag.Bool("v", false, "enable verbose mode")
 	outputFile := flag.String("o", "", "output file path")
+	insecure := flag.Bool("k", false, "allow insecure server connections when using SSL")
 
 	// Parse the command-line flags
 	flag.Parse()
@@ -44,9 +46,13 @@ func main() {
 	// Create a channel to send URLs to be processed
 	urlChan := make(chan string)
 
-	// Create an HTTP client with the specified timeout
+	// Create an HTTP client with the specified timeout and optional insecure setting
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: *insecure},
+	}
 	client := &http.Client{
-		Timeout: time.Duration(*timeout) * time.Second,
+		Timeout:   time.Duration(*timeout) * time.Second,
+		Transport: tr,
 	}
 
 	// Start the goroutines
