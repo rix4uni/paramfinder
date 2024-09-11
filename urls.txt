@@ -1,3 +1,0 @@
-http://testphp.vulnweb.com/login.php
-http://testphp.vulnweb.com/guestbook.php
-http://testphp.vulnweb.com/AJAX/index.php
