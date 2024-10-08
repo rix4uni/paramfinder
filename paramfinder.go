@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,10 +14,12 @@ import (
 	"time"
 	"strings"
 	"math/rand"
+
+	"github.com/spf13/pflag"
 )
 
 // prints the version message
-const version = "0.0.1"
+const version = "0.0.2"
 
 func printVersion() {
 	fmt.Printf("Current paramfinder version %s\n", version)
@@ -27,11 +28,13 @@ func printVersion() {
 // Prints the banner
 func printBanner() {
 	banner := `
- ____   __    ____    __    __  __  ____  ____  _  _  ____  ____  ____ 
-(  _ \ /__\  (  _ \  /__\  (  \/  )( ___)(_  _)( \( )(  _ \( ___)(  _ \
- )___//(__)\  )   / /(__)\  )    (  )__)  _)(_  )  (  )(_) ))__)  )   /
-(__) (__)(__)(_)\_)(__)(__)(_/\/\_)(__)  (____)(_)\_)(____/(____)(_)\_)`
-fmt.Printf("%s\n%60s\n\n", banner, "Current paramfinder version "+version)
+                                           ____ _             __           
+    ____   ____ _ _____ ____ _ ____ ___   / __/(_)____   ____/ /___   _____
+   / __ \ / __  // ___// __  // __  __ \ / /_ / // __ \ / __  // _ \ / ___/
+  / /_/ // /_/ // /   / /_/ // / / / / // __// // / / // /_/ //  __// /    
+ / .___/ \__,_//_/    \__,_//_/ /_/ /_//_/  /_//_/ /_/ \__,_/ \___//_/     
+/_/                                                                    `
+fmt.Printf("%s\n%80s\n\n", banner, "Current paramfinder version "+version)
 
 }
 
@@ -48,18 +51,19 @@ func generateRandomString(length int) string {
 
 func main() {
 	// Define command-line flags
-	numRoutines := flag.Int("c", 50, "number of concurrent goroutines")
-	timeout := flag.Int("timeout", 10, "HTTP request timeout duration (in seconds)")
-	outputFileFlag := flag.String("o", "", "output file path")
-	appendOutputFlag := flag.String("ao", "", "File to append the output instead of overwriting.")
-	insecure := flag.Bool("insecure", false, "allow insecure server connections when using SSL")
-	transformURL := flag.Bool("turl", false, "transform URL with extracted parameters")
-	silent := flag.Bool("silent", false, "silent mode.")
-	version := flag.Bool("version", false, "Print the version of the tool and exit.")
-	verbose := flag.Bool("verbose", false, "enable verbose mode")
+	numRoutines := pflag.IntP("concurrency", "c", 50, "number of concurrent goroutines")
+	timeout := pflag.IntP("timeout", "t", 10, "HTTP request timeout duration (in seconds)")
+	outputFileFlag := pflag.StringP("output", "o", "", "output file path")
+	appendOutputFlag := pflag.StringP("append", "a", "", "File to append the output instead of overwriting.")
+	insecure := pflag.BoolP("insecure", "i", false, "allow insecure server connections when using SSL")
+	notransformURL := pflag.BoolP("no-turl", "n", false, "Do not print transform URL with extracted parameters")
+	onlyHidden := pflag.Bool("only-hidden", false, "print only hidden input tags")
+	silent := pflag.BoolP("silent", "s", false, "silent mode.")
+	version := pflag.BoolP("version", "V", false, "Print the version of the tool and exit.")
+	verbose := pflag.BoolP("verbose", "v", false, "enable verbose mode")
 
 	// Parse the command-line flags
-	flag.Parse()
+	pflag.Parse()
 
 	// Print version and exit if -version flag is provided
 	if *version {
@@ -68,7 +72,7 @@ func main() {
 		return
 	}
 
-	// Don't Print banner if -silnet flag is provided
+	// Don't Print banner if -silent flag is provided
 	if !*silent {
 		printBanner()
 	}
@@ -143,6 +147,17 @@ func main() {
 				re := regexp.MustCompile(`<input[^>]*>|<textarea[^>]*>`)
 				inputTags := re.FindAllString(string(body), -1)
 
+				// Filter for only hidden input tags if the flag is set
+				if *onlyHidden {
+					var hiddenTags []string
+					for _, tag := range inputTags {
+						if strings.Contains(tag, `type="hidden"`) || strings.Contains(tag, `type='hidden'`) {
+							hiddenTags = append(hiddenTags, tag)
+						}
+					}
+					inputTags = hiddenTags
+				}
+
 				// Print the URL and input tags if verbose mode is enabled or there are input tags
 				if *verbose || len(inputTags) > 0 {
 					fmt.Fprintln(outputWriter, "URL:", url)
@@ -152,9 +167,9 @@ func main() {
 					fmt.Fprintln(outputWriter)
 				}
 
-				// Transform URL if -turl flag is set
-				if *transformURL {
-					transformedURL := transformURLWithParams(url, inputTags)
+				// Transform URL if -no-turl flag is not set
+				if !*notransformURL {
+					transformedURL := notransformURLWithParams(url, inputTags, *onlyHidden)
 					if transformedURL != url { // Check if transformation resulted in a different URL
 						fmt.Fprintln(outputWriter, "TRANSFORM_URL:", transformedURL)
 					}
@@ -181,13 +196,13 @@ func main() {
 	}
 }
 
-// transformURLWithParams appends query parameters to the URL based on input tags
-func transformURLWithParams(baseURL string, tags []string) string {
+// notransformURLWithParams appends query parameters to the URL based on input tags
+func notransformURLWithParams(baseURL string, inputTags []string, onlyHidden bool) string {
 	// Create an ordered map to keep track of the parameters and their values
 	params := make([]string, 0)
 	seen := make(map[string]bool)
 
-	for _, tag := range tags {
+	for _, tag := range inputTags {
 		re := regexp.MustCompile(`name="([^"]+)"`)
 		names := re.FindAllStringSubmatch(tag, -1)
 		for _, name := range names {
