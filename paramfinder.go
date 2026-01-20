@@ -13,68 +13,31 @@ import (
 	"sync"
 	"time"
 	"strings"
-	"math/rand"
 
 	"github.com/spf13/pflag"
+	"github.com/rix4uni/paramfinder/banner"
 )
-
-// prints the version message
-const version = "0.0.2"
-
-func printVersion() {
-	fmt.Printf("Current paramfinder version %s\n", version)
-}
-
-// Prints the banner
-func printBanner() {
-	banner := `
-                                           ____ _             __           
-    ____   ____ _ _____ ____ _ ____ ___   / __/(_)____   ____/ /___   _____
-   / __ \ / __  // ___// __  // __  __ \ / /_ / // __ \ / __  // _ \ / ___/
-  / /_/ // /_/ // /   / /_/ // / / / / // __// // / / // /_/ //  __// /    
- / .___/ \__,_//_/    \__,_//_/ /_/ /_//_/  /_//_/ /_/ \__,_/ \___//_/     
-/_/                                                                    `
-fmt.Printf("%s\n%80s\n\n", banner, "Current paramfinder version "+version)
-
-}
-
-// Generate a random string of lowercase letters of the specified length
-func generateRandomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyz"
-	seededRand := rand.New(rand.NewSource(time.Now().UnixNano()))
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
-	}
-	return string(b)
-}
 
 func main() {
 	// Define command-line flags
-	numRoutines := pflag.IntP("concurrency", "c", 50, "number of concurrent goroutines")
-	timeout := pflag.IntP("timeout", "t", 10, "HTTP request timeout duration (in seconds)")
-	outputFileFlag := pflag.StringP("output", "o", "", "output file path")
-	appendOutputFlag := pflag.StringP("append", "a", "", "File to append the output instead of overwriting.")
-	insecure := pflag.BoolP("insecure", "i", false, "allow insecure server connections when using SSL")
-	notransformURL := pflag.BoolP("no-turl", "n", false, "Do not print transform URL with extracted parameters")
-	onlyHidden := pflag.Bool("only-hidden", false, "print only hidden input tags")
-	silent := pflag.BoolP("silent", "s", false, "silent mode.")
-	version := pflag.BoolP("version", "V", false, "Print the version of the tool and exit.")
-	verbose := pflag.BoolP("verbose", "v", false, "enable verbose mode")
+	numRoutines := pflag.Int("concurrency", 50, "number of concurrent goroutines")
+	timeout := pflag.Int("timeout", 30, "HTTP request timeout duration (in seconds)")
+	outputFileFlag := pflag.String("output", "", "output file path")
+	silent := pflag.Bool("silent", false, "silent mode.")
+	version := pflag.Bool("version", false, "Print the version of the tool and exit.")
+	verbose := pflag.Bool("verbose", false, "enable verbose mode")
 
 	// Parse the command-line flags
 	pflag.Parse()
 
-	// Print version and exit if -version flag is provided
 	if *version {
-		printBanner()
-		printVersion()
-		return
+		banner.PrintBanner()
+		banner.PrintVersion()
+		os.Exit(0)
 	}
 
-	// Don't Print banner if -silent flag is provided
 	if !*silent {
-		printBanner()
+		banner.PrintBanner()
 	}
 
 	// Create a multi-writer for output
@@ -83,14 +46,6 @@ func main() {
 		output, err := os.Create(*outputFileFlag)
 		if err != nil {
 			fmt.Println("Error opening output file:", err)
-			os.Exit(1)
-		}
-		defer output.Close()
-		outputWriter = io.MultiWriter(os.Stdout, output)
-	} else if *appendOutputFlag != "" {
-		output, err := os.OpenFile(*appendOutputFlag, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-		if err != nil {
-			fmt.Println("Error opening output file for appending:", err)
 			os.Exit(1)
 		}
 		defer output.Close()
@@ -106,9 +61,9 @@ func main() {
 	// Create a channel to send URLs to be processed
 	urlChan := make(chan string)
 
-	// Create an HTTP client with the specified timeout and optional insecure setting
+	// Create an HTTP client with the specified timeout and insecure setting enabled
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: *insecure},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{
 		Timeout:   time.Duration(*timeout) * time.Second,
@@ -147,32 +102,10 @@ func main() {
 				re := regexp.MustCompile(`<input[^>]*>|<textarea[^>]*>`)
 				inputTags := re.FindAllString(string(body), -1)
 
-				// Filter for only hidden input tags if the flag is set
-				if *onlyHidden {
-					var hiddenTags []string
-					for _, tag := range inputTags {
-						if strings.Contains(tag, `type="hidden"`) || strings.Contains(tag, `type='hidden'`) {
-							hiddenTags = append(hiddenTags, tag)
-						}
-					}
-					inputTags = hiddenTags
-				}
-
-				// Print the URL and input tags if verbose mode is enabled or there are input tags
-				if *verbose || len(inputTags) > 0 {
-					fmt.Fprintln(outputWriter, "URL:", url)
-					for _, tag := range inputTags {
-						fmt.Fprintln(outputWriter, tag)
-					}
-					fmt.Fprintln(outputWriter)
-				}
-
-				// Transform URL if -no-turl flag is not set
-				if !*notransformURL {
-					transformedURL := notransformURLWithParams(url, inputTags, *onlyHidden)
-					if transformedURL != url { // Check if transformation resulted in a different URL
-						fmt.Fprintln(outputWriter, "TRANSFORM_URL:", transformedURL)
-					}
+				// Transform URL and print it
+				transformedURL := notransformURLWithParams(url, inputTags)
+				if transformedURL != url { // Check if transformation resulted in a different URL
+					fmt.Fprintln(outputWriter, transformedURL)
 				}
 			}
 		}()
@@ -197,7 +130,7 @@ func main() {
 }
 
 // notransformURLWithParams appends query parameters to the URL based on input tags
-func notransformURLWithParams(baseURL string, inputTags []string, onlyHidden bool) string {
+func notransformURLWithParams(baseURL string, inputTags []string) string {
 	// Create an ordered map to keep track of the parameters and their values
 	params := make([]string, 0)
 	seen := make(map[string]bool)
@@ -208,8 +141,7 @@ func notransformURLWithParams(baseURL string, inputTags []string, onlyHidden boo
 		for _, name := range names {
 			paramName := name[1]
 			if !seen[paramName] {
-				randomString := generateRandomString(7)
-				params = append(params, fmt.Sprintf("%s=%s", paramName, randomString))
+				params = append(params, fmt.Sprintf("%s=rix4uni", paramName))
 				seen[paramName] = true
 			}
 		}
